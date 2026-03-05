@@ -58,6 +58,66 @@ export interface Payment {
   amount: number;
 }
 
+export interface CashMovement {
+  id: string;
+  type: 'sale' | 'sangria' | 'suprimento';
+  amount: number;
+  description: string;
+  paymentMethod?: Payment['method'];
+  payments?: Payment[];
+  commission?: number;
+  timestamp: string;
+}
+
+export interface CashRegisterSession {
+  id: string;
+  operator: string;
+  date: string;
+  openedAt: string;
+  closedAt: string | null;
+  initialFund: number;
+  movements: CashMovement[];
+  status: 'open' | 'closed';
+  finalCashInDrawer?: number;
+}
+
+export const cashRegisterHistory: CashRegisterSession[] = [
+  {
+    id: 'cr1',
+    operator: 'Carlos Silva',
+    date: '2026-03-03',
+    openedAt: '2026-03-03T08:00:00',
+    closedAt: '2026-03-03T19:30:00',
+    initialFund: 200,
+    movements: [
+      { id: 'm1', type: 'sale', amount: 70, description: 'Corte + Barba — João Mendes', payments: [{ method: 'cash', amount: 70 }], commission: 35, timestamp: '2026-03-03T09:50:00' },
+      { id: 'm2', type: 'sale', amount: 45, description: 'Corte Masculino — Pedro Alves', payments: [{ method: 'pix', amount: 45 }], commission: 22.50, timestamp: '2026-03-03T10:30:00' },
+      { id: 'm3', type: 'sangria', amount: 50, description: 'Pagamento motoboy', timestamp: '2026-03-03T12:00:00' },
+      { id: 'm4', type: 'sale', amount: 115, description: 'Corte + Pomada — Lucas Ferreira', payments: [{ method: 'credit', amount: 70 }, { method: 'cash', amount: 45 }], commission: 39.50, timestamp: '2026-03-03T14:20:00' },
+      { id: 'm5', type: 'suprimento', amount: 100, description: 'Troco extra', timestamp: '2026-03-03T15:00:00' },
+      { id: 'm6', type: 'sale', amount: 80, description: 'Pigmentação — Gabriel Lima', payments: [{ method: 'debit', amount: 80 }], commission: 40, timestamp: '2026-03-03T16:40:00' },
+    ],
+    status: 'closed',
+    finalCashInDrawer: 365,
+  },
+  {
+    id: 'cr2',
+    operator: 'André Oliveira',
+    date: '2026-03-04',
+    openedAt: '2026-03-04T08:30:00',
+    closedAt: '2026-03-04T20:00:00',
+    initialFund: 150,
+    movements: [
+      { id: 'm7', type: 'sale', amount: 150, description: 'Platinado — Thiago Nunes', payments: [{ method: 'pix', amount: 100 }, { method: 'cash', amount: 50 }], commission: 67.50, timestamp: '2026-03-04T10:30:00' },
+      { id: 'm8', type: 'sale', amount: 55, description: 'Óleo para Barba — Pedro Alves', payments: [{ method: 'cash', amount: 55 }], commission: 5.50, timestamp: '2026-03-04T11:00:00' },
+      { id: 'm9', type: 'sangria', amount: 80, description: 'Vale funcionário', timestamp: '2026-03-04T13:00:00' },
+      { id: 'm10', type: 'sale', amount: 35, description: 'Barba Completa — Matheus Rocha', payments: [{ method: 'debit', amount: 35 }], commission: 15.75, timestamp: '2026-03-04T15:00:00' },
+    ],
+    status: 'closed',
+    finalCashInDrawer: 175,
+  },
+];
+
 export const professionals: Professional[] = [
   { id: 'p1', name: 'Carlos Silva', avatar: 'CS', serviceCommission: 50, productCommission: 10 },
   { id: 'p2', name: 'André Oliveira', avatar: 'AO', serviceCommission: 45, productCommission: 10 },

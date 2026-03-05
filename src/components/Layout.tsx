@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, ShoppingCart, Package, Menu, X, Scissors } from 'lucide-react';
+import { Calendar, ShoppingCart, Package, Menu, X, Scissors, Landmark } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const navItems = [
   { path: '/', label: 'Agenda', icon: Calendar },
   { path: '/pdv', label: 'PDV', icon: ShoppingCart },
   { path: '/estoque', label: 'Estoque', icon: Package },
+  { path: '/caixa', label: 'Caixa', icon: Landmark },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
