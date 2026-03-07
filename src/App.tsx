@@ -12,6 +12,8 @@ import Inventory from "./pages/Inventory";
 import Services from "./pages/Services";
 import Clients from "./pages/Clients";
 import CashHistory from "./pages/CashHistory";
+import Accounts from "./pages/Accounts";
+import AdminSaaS from "./pages/AdminSaaS";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 
@@ -52,6 +54,8 @@ const App = () => (
                   <Route path="/servicos" element={<Services />} />
                   <Route path="/estoque" element={<Inventory />} />
                   <Route path="/caixa" element={<CashHistory />} />
+                  <Route path="/contas" element={<Accounts />} />
+                  <Route path="/admin" element={<AdminSaaS />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Layout>
