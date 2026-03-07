@@ -5,32 +5,60 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
 import { CashRegisterProvider } from "./contexts/CashRegisterContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Schedule from "./pages/Schedule";
 import POS from "./pages/POS";
 import Inventory from "./pages/Inventory";
+import Services from "./pages/Services";
+import Clients from "./pages/Clients";
 import CashHistory from "./pages/CashHistory";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
 
 const queryClient = new QueryClient();
+
+const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  return <>{children}</>;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <CashRegisterProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Schedule />} />
-              <Route path="/pdv" element={<POS />} />
-              <Route path="/estoque" element={<Inventory />} />
-              <Route path="/caixa" element={<CashHistory />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Layout>
-        </BrowserRouter>
-      </CashRegisterProvider>
+      <AuthProvider>
+        <CashRegisterProvider>
+          <Toaster />
+          <Sonner />
+          <AuthWrapper>
+            <BrowserRouter>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Schedule />} />
+                  <Route path="/clientes" element={<Clients />} />
+                  <Route path="/pdv" element={<POS />} />
+                  <Route path="/servicos" element={<Services />} />
+                  <Route path="/estoque" element={<Inventory />} />
+                  <Route path="/caixa" element={<CashHistory />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Layout>
+            </BrowserRouter>
+          </AuthWrapper>
+        </CashRegisterProvider>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, Minus, CreditCard, Smartphone, Banknote, Wallet, X, Check, Lock, Unlock, ArrowDownFromLine, ArrowUpFromLine, BarChart3 } from 'lucide-react';
-import { services, products, professionals, type CartItem, type Payment, type CashRegisterSession } from '@/data/mockData';
-import { useCashRegister } from '@/contexts/CashRegisterContext';
+import { type Payment, type CashRegisterSession } from '@/data/mockData';
+import { useCashRegister, type CartItem } from '@/contexts/CashRegisterContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '@/lib/supabase';
 
 const paymentMethods = [
   { key: 'pix' as const, label: 'PIX', icon: Smartphone },
@@ -50,9 +51,29 @@ function getSessionTotals(session: CashRegisterSession) {
   return { totalPix, totalCredit, totalDebit, totalCash, grossRevenue, totalCommission, sangrias, suprimentos, expectedCashInDrawer };
 }
 
+interface Professional {
+  id: string;
+  name: string;
+  serviceCommission: number;
+  productCommission: number;
+}
+
+interface StockItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  category: 'sale' | 'internal';
+  duration?: number;
+}
+
 export default function POS() {
   const { toast } = useToast();
   const { currentSession, isOpen, openRegister, closeRegister, addSale, addSangria, addSuprimento } = useCashRegister();
+
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [dbProducts, setDbProducts] = useState<StockItem[]>([]);
+  const [dbServices, setDbServices] = useState<StockItem[]>([]);
 
   // Open register modal
   const [showOpenModal, setShowOpenModal] = useState(!isOpen);
@@ -74,20 +95,59 @@ export default function POS() {
   // POS state
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedProfessional, setSelectedProfessional] = useState(professionals[0].id);
+  const [selectedProfessional, setSelectedProfessional] = useState('');
   const [showCheckout, setShowCheckout] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [newPayMethod, setNewPayMethod] = useState<Payment['method']>('pix');
   const [newPayAmount, setNewPayAmount] = useState('');
 
-  const saleProducts = products.filter(p => p.category === 'sale');
+  useEffect(() => {
+    async function loadData() {
+      const [profData, stockData] = await Promise.all([
+        supabase.from('profissionais').select('*'),
+        supabase.from('estoque').select('*')
+      ]);
+
+      if (profData.data) {
+        const mappedProfs = profData.data.map(p => ({
+          id: p.id,
+          name: p.nome,
+          serviceCommission: parseFloat(p.comissao_servico),
+          productCommission: parseFloat(p.comissao_produto)
+        }));
+        setProfessionals(mappedProfs);
+        if (mappedProfs.length > 0) setSelectedProfessional(mappedProfs[0].id);
+      }
+
+      if (stockData.data) {
+        const saleList: StockItem[] = [];
+        const internalList: StockItem[] = [];
+        stockData.data.forEach(item => {
+          const mapped: StockItem = {
+            id: item.id,
+            name: item.nome,
+            price: parseFloat(item.preco_venda),
+            quantity: item.quantidade,
+            category: item.tipo === 'venda' ? 'sale' : 'internal',
+            duration: item.tipo === 'uso_interno' ? 30 : undefined
+          };
+          if (mapped.category === 'sale') saleList.push(mapped);
+          else if (mapped.category === 'internal' && mapped.price > 0) internalList.push(mapped);
+        });
+        setDbProducts(saleList);
+        setDbServices(internalList);
+      }
+    }
+    loadData();
+  }, []);
+
   const catalog = useMemo(() => {
     const q = search.toLowerCase();
     return {
-      services: services.filter(s => s.name.toLowerCase().includes(q)),
-      products: saleProducts.filter(p => p.name.toLowerCase().includes(q)),
+      services: dbServices.filter(s => s.name.toLowerCase().includes(q)),
+      products: dbProducts.filter(p => p.name.toLowerCase().includes(q)),
     };
-  }, [search]);
+  }, [search, dbProducts, dbServices]);
 
   const addToCart = (item: { id: string; name: string; price: number }, type: 'service' | 'product') => {
     setCart(prev => {
@@ -105,8 +165,10 @@ export default function POS() {
   const paidTotal = payments.reduce((s, p) => s + p.amount, 0);
   const remaining = total - paidTotal;
 
-  const prof = professionals.find(p => p.id === selectedProfessional)!;
+  const prof = professionals.find(p => p.id === selectedProfessional);
+
   const commissionBreakdown = useMemo(() => {
+    if (!prof) return { serviceTotal: 0, productTotal: 0, serviceCommission: 0, productCommission: 0, totalCommission: 0 };
     let serviceTotal = 0, productTotal = 0;
     cart.forEach(c => {
       if (c.type === 'service') serviceTotal += c.price * c.quantity;
@@ -133,7 +195,15 @@ export default function POS() {
       return;
     }
     const desc = cart.map(c => c.name).join(', ');
-    addSale(total, desc, [...payments], commissionBreakdown.totalCommission);
+    addSale(total, desc, [...payments], commissionBreakdown.totalCommission, [...cart], selectedProfessional);
+
+    // update local stock state so ui reflects db operation
+    setDbProducts(prev => prev.map(p => {
+      const cartItem = cart.find(c => c.id === p.id && c.type === 'product');
+      if (cartItem) return { ...p, quantity: Math.max(0, p.quantity - cartItem.quantity) };
+      return p;
+    }));
+
     toast({ title: 'Venda finalizada!', description: `Total: R$ ${total.toFixed(2)} | Comissão: R$ ${commissionBreakdown.totalCommission.toFixed(2)}` });
     setCart([]);
     setPayments([]);
@@ -196,8 +266,8 @@ export default function POS() {
   if (!isOpen && !showCloseSummary) {
     return (
       <div className="p-4 md:p-6 flex items-center justify-center h-full">
-        <Dialog open={true} onOpenChange={() => {}}>
-          <DialogContent className="glass-card border-glass-border max-w-sm" onPointerDownOutside={e => e.preventDefault()}>
+        <Dialog open={true} onOpenChange={() => { }}>
+          <DialogContent hideCloseButton className="glass-card border-glass-border max-w-sm" onPointerDownOutside={e => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle className="font-display flex items-center gap-2">
                 <Unlock className="w-5 h-5 text-primary" /> Abrir Caixa
@@ -347,9 +417,9 @@ export default function POS() {
                 <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Produtos</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {catalog.products.map(p => (
-                    <button key={p.id} onClick={() => addToCart({ id: p.id, name: p.name, price: p.salePrice }, 'product')} className="glass-card-hover p-3 text-left">
+                    <button key={p.id} onClick={() => addToCart({ id: p.id, name: p.name, price: p.price }, 'product')} className="glass-card-hover p-3 text-left">
                       <p className="text-sm font-medium truncate">{p.name}</p>
-                      <p className="text-primary font-bold text-sm mt-1">R$ {p.salePrice.toFixed(2)}</p>
+                      <p className="text-primary font-bold text-sm mt-1">R$ {p.price.toFixed(2)}</p>
                       <p className="text-xs text-muted-foreground">Estoque: {p.quantity}</p>
                     </button>
                   ))}
@@ -385,7 +455,7 @@ export default function POS() {
             {cart.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Carrinho vazio</p>}
           </div>
 
-          {cart.length > 0 && (
+          {cart.length > 0 && prof && (
             <div className="px-4 py-2 border-t border-border text-xs space-y-1">
               <div className="flex justify-between text-muted-foreground">
                 <span>Comissão serviços ({prof.serviceCommission}%)</span>

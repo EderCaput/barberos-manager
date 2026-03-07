@@ -1,22 +1,75 @@
-import { useState } from 'react';
-import { Plus, Minus, AlertTriangle, Search, ArrowUpDown } from 'lucide-react';
-import { products, type Product } from '@/data/mockData';
+import { useState, useEffect } from 'react';
+import { Plus, Minus, AlertTriangle, Search, ArrowUpDown, PackagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { motion } from 'framer-motion';
+import { supabase } from '@/lib/supabase';
 
 type SortKey = 'name' | 'quantity' | 'salePrice';
 
+interface DbProduct {
+  id: string;
+  name: string;
+  category: 'sale' | 'internal';
+  quantity: number;
+  minQuantity: number;
+  costPrice: number;
+  salePrice: number;
+}
+
 export default function Inventory() {
   const { toast } = useToast();
-  const [inventory, setInventory] = useState<Product[]>(products);
+  const [inventory, setInventory] = useState<DbProduct[]>([]);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortAsc, setSortAsc] = useState(true);
   const [page, setPage] = useState(0);
   const perPage = 8;
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newCategory, setNewCategory] = useState<'sale' | 'internal'>('sale');
+  const [newCost, setNewCost] = useState('');
+  const [newPrice, setNewPrice] = useState('');
+  const [newQty, setNewQty] = useState('0');
+  const [newMinQty, setNewMinQty] = useState('5');
+
+  const loadInventory = async () => {
+    const { data, error } = await supabase.from('estoque').select('*');
+    if (error) {
+      console.error("Erro ao puxar estoque:", error);
+    } else if (data) {
+      setInventory(data.map(item => ({
+        id: item.id,
+        name: item.nome,
+        category: item.tipo === 'venda' ? 'sale' : 'internal',
+        quantity: item.quantidade,
+        minQuantity: item.qtd_minima,
+        costPrice: parseFloat(item.custo),
+        salePrice: parseFloat(item.preco_venda),
+      })));
+    }
+  };
+
+  useEffect(() => {
+    loadInventory();
+  }, []);
 
   const filtered = inventory
     .filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
@@ -34,15 +87,62 @@ export default function Inventory() {
     else { setSortKey(key); setSortAsc(true); }
   };
 
-  const adjustQty = (id: string, delta: number) => {
+  const adjustQty = async (id: string, delta: number) => {
+    const product = inventory.find(p => p.id === id);
+    if (!product) return;
+
+    const newQty = Math.max(0, product.quantity + delta);
+
+    // Atualização otimista na tela
     setInventory(prev => prev.map(p => {
       if (p.id !== id) return p;
-      const newQty = Math.max(0, p.quantity + delta);
       if (newQty <= p.minQuantity && p.quantity > p.minQuantity) {
         toast({ title: `⚠️ ${p.name}: estoque crítico!`, variant: 'destructive' });
       }
       return { ...p, quantity: newQty };
     }));
+
+    // Atualiza no banco
+    const { error } = await supabase.from('estoque').update({ quantidade: newQty }).eq('id', id);
+    if (error) {
+      console.error("Erro no supabase ao atualizar estoque:", error);
+      toast({ title: 'Erro ao salvar no banco', variant: 'destructive' });
+      // Reverte
+      setInventory(prev => prev.map(p => p.id === id ? { ...p, quantity: product.quantity } : p));
+    }
+  };
+
+  const handleAddProduct = async () => {
+    if (!newName.trim()) {
+      toast({ title: 'O nome é obrigatório', variant: 'destructive' });
+      return;
+    }
+
+    const { error } = await supabase.from('estoque').insert({
+      nome: newName.trim(),
+      tipo: newCategory === 'sale' ? 'venda' : 'uso_interno',
+      custo: parseFloat(newCost) || 0,
+      preco_venda: parseFloat(newPrice) || 0,
+      quantidade: parseInt(newQty) || 0,
+      qtd_minima: parseInt(newMinQty) || 5
+    });
+
+    if (error) {
+      console.error("Erro ao adicionar produto:", error);
+      toast({ title: 'Erro ao criar produto', variant: 'destructive' });
+    } else {
+      toast({ title: 'Produto adicionado com sucesso!' });
+      setShowAddModal(false);
+
+      // Reset form
+      setNewName('');
+      setNewCost('');
+      setNewPrice('');
+      setNewQty('0');
+      setNewMinQty('5');
+
+      loadInventory();
+    }
   };
 
   const SortHeader = ({ label, sortKeyName }: { label: string; sortKeyName: SortKey }) => (
@@ -61,6 +161,9 @@ export default function Inventory() {
             <AlertTriangle className="w-3 h-3 mr-1" />
             {inventory.filter(p => p.quantity <= p.minQuantity).length} críticos
           </Badge>
+          <Button onClick={() => setShowAddModal(true)} size="sm">
+            <PackagePlus className="w-4 h-4 mr-2" /> Novo Produto
+          </Button>
         </div>
       </div>
 
@@ -84,18 +187,18 @@ export default function Inventory() {
             </tr>
           </thead>
           <tbody>
-            {paginated.map(p => {
+            {paginated.map((p, idx) => {
               const critical = p.quantity <= p.minQuantity;
               return (
                 <motion.tr
-                  key={p.id}
+                  key={`${p.id}-${idx}`}
                   layout
                   className="border-b border-border/30 hover:bg-secondary/30 transition-colors"
                 >
                   <td className="p-3 font-medium">{p.name}</td>
                   <td className="p-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${p.category === 'sale' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                      {p.category === 'sale' ? 'Venda' : 'Uso Interno'}
+                      {p.category === 'sale' ? 'Venda' : 'Uso Interno / Serviço'}
                     </span>
                   </td>
                   <td className="p-3 text-center font-bold">{p.quantity}</td>
@@ -124,6 +227,13 @@ export default function Inventory() {
                 </motion.tr>
               );
             })}
+            {inventory.length === 0 && (
+              <tr>
+                <td colSpan={8} className="p-8 text-center text-muted-foreground">
+                  Nenhum produto cadastrado.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -135,6 +245,53 @@ export default function Inventory() {
           <Button variant="ghost" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>Próxima</Button>
         </div>
       )}
+
+      {/* Add Product Dialog */}
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent className="glass-card border-glass-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <PackagePlus className="w-5 h-5 text-primary" /> Cadastrar Produto/Serviço
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">Nome</label>
+              <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ex: Pomada Modeladora" className="bg-secondary border-border" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground mb-1 block">Tipo</label>
+              <Select value={newCategory} onValueChange={v => setNewCategory(v as 'sale' | 'internal')}>
+                <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sale">Produto para Venda</SelectItem>
+                  <SelectItem value="internal">Uso Interno / Serviço</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Preço de Custo (R$)</label>
+              <Input type="number" value={newCost} onChange={e => setNewCost(e.target.value)} placeholder="0.00" className="bg-secondary border-border" min="0" step="0.01" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Preço de Venda (R$)</label>
+              <Input type="number" value={newPrice} onChange={e => setNewPrice(e.target.value)} placeholder="0.00" className="bg-secondary border-border" min="0" step="0.01" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Qtd. Inicial</label>
+              <Input type="number" value={newQty} onChange={e => setNewQty(e.target.value)} className="bg-secondary border-border" min="0" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Qtd. Mínima</label>
+              <Input type="number" value={newMinQty} onChange={e => setNewMinQty(e.target.value)} className="bg-secondary border-border" min="0" />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowAddModal(false)}>Cancelar</Button>
+            <Button onClick={handleAddProduct}>Salvar no Estoque</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
