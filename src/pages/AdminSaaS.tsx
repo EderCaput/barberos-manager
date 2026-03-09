@@ -21,7 +21,7 @@ import {
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClient } from '@supabase/supabase-js';
+
 
 interface Assinante {
     id: string;
@@ -76,42 +76,50 @@ export default function AdminSaaS() {
             return;
         }
 
-        toast({ title: 'Criando conta de autenticação SaaS...' });
-
-        // Primeiro: criar conta de autenticação (Auth) no Supabase de forma segura sem deslogar o admin
-        const tempClient = createClient(
-            import.meta.env.VITE_SUPABASE_URL || '',
-            import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-            { auth: { persistSession: false, autoRefreshToken: false } }
-        );
-
-        const { data: authData, error: authError } = await tempClient.auth.signUp({
-            email: newEmail.trim(),
-            password: newSenha.trim(),
-        });
-
-        if (authError) {
-            toast({ title: 'Erro ao criar conta Auth', description: authError.message, variant: 'destructive' });
+        if (newSenha.trim().length < 6) {
+            toast({ title: 'A senha deve ter pelo menos 6 caracteres.', variant: 'destructive' });
             return;
         }
 
-        // Segundo: Adicionar registro no assinantes (ainda usando a conta do admin logada para o admin ser dono do registro)
-        const payload = {
-            nome_barbearia: newBarbearia.trim(),
-            dono: newDono.trim(),
-            email: newEmail.trim(),
-            telefone: newPhone.trim(),
-            status: newStatus,
-            valor_assinatura: parseFloat(newValor),
-            user_id: user?.id
-        };
+        toast({ title: 'Criando conta...' });
 
-        const { error } = await supabase.from('assinantes').insert(payload);
+        try {
+            // Busca a sessão atual do admin para passar o token de autorização
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                toast({ title: 'Sessão expirada. Faça login novamente.', variant: 'destructive' });
+                return;
+            }
 
-        if (error) {
-            toast({ title: 'Erro ao salvar cliente/assinante.', variant: 'destructive' });
-        } else {
-            toast({ title: 'Conta e assinatura criadas com sucesso!' });
+            // Chama a Edge Function com service_role para criar o usuário Auth sem confirmação de email
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+            const response = await fetch(`${supabaseUrl}/functions/v1/create-saas-user`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+                },
+                body: JSON.stringify({
+                    email: newEmail.trim(),
+                    password: newSenha.trim(),
+                    nome_barbearia: newBarbearia.trim(),
+                    dono: newDono.trim() || null,
+                    telefone: newPhone.trim() || null,
+                    status: newStatus,
+                    valor_assinatura: newValor,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || result.error) {
+                const errMsg = result.error || 'Erro desconhecido ao criar conta.';
+                toast({ title: 'Erro ao criar conta SaaS', description: errMsg, variant: 'destructive' });
+                return;
+            }
+
+            toast({ title: '✅ Conta e assinatura criadas com sucesso!', description: `${newBarbearia} pode logar agora com o email cadastrado.` });
             setShowModal(false);
             setNewBarbearia('');
             setNewDono('');
@@ -120,6 +128,10 @@ export default function AdminSaaS() {
             setNewSenha('');
             setNewValor('55.00');
             loadAssinantes();
+
+        } catch (err: any) {
+            console.error('Erro ao criar conta SaaS:', err);
+            toast({ title: 'Erro inesperado.', description: err?.message || String(err), variant: 'destructive' });
         }
     };
 
