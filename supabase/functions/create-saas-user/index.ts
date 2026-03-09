@@ -6,14 +6,14 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ADMIN_EMAIL = "edercaput@gmail.com";
+
 Deno.serve(async (req) => {
-    // Handle CORS preflight
     if (req.method === "OPTIONS") {
         return new Response("ok", { headers: corsHeaders });
     }
 
     try {
-        // 1. Valida que quem chamou está autenticado (é o admin logado)
         const authHeader = req.headers.get("Authorization");
         if (!authHeader) {
             return new Response(JSON.stringify({ error: "Não autorizado." }), {
@@ -22,20 +22,22 @@ Deno.serve(async (req) => {
             });
         }
 
-        // 2. Cria o cliente supabase com a service_role key (poder total)
+        // Cria cliente admin com service_role (poder total)
         const supabaseAdmin = createClient(
             Deno.env.get("SUPABASE_URL") ?? "",
             Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
             { auth: { autoRefreshToken: false, persistSession: false } }
         );
 
-        // 3. Verifica que quem chama é um usuário autenticado válido
+        // Verifica que quem chama é o admin autorizado
         const supabaseClient = createClient(
             Deno.env.get("SUPABASE_URL") ?? "",
             Deno.env.get("SUPABASE_ANON_KEY") ?? "",
             { global: { headers: { Authorization: authHeader } } }
         );
+
         const { data: { user: callerUser }, error: callerError } = await supabaseClient.auth.getUser();
+
         if (callerError || !callerUser) {
             return new Response(JSON.stringify({ error: "Token inválido." }), {
                 status: 401,
@@ -43,21 +45,32 @@ Deno.serve(async (req) => {
             });
         }
 
-        // 4. Lê o body da requisição
+        // Garante que apenas o admin pode chamar esta função
+        if (callerUser.email !== ADMIN_EMAIL) {
+            return new Response(JSON.stringify({ error: "Apenas o administrador pode criar contas SaaS." }), {
+                status: 403,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
+
         const { email, password, nome_barbearia, dono, telefone, status, valor_assinatura } = await req.json();
 
         if (!email || !password || !nome_barbearia) {
-            return new Response(JSON.stringify({ error: "Campos obrigatórios faltando: email, password, nome_barbearia." }), {
+            return new Response(JSON.stringify({ error: "Campos obrigatórios: email, password, nome_barbearia." }), {
                 status: 400,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
         }
 
-        // 5. Cria o usuário Auth com service_role (sem precisar de confirmação de email)
+        // Busca o user_id do admin para gravar em assinantes
+        const { data: adminUser } = await supabaseAdmin.auth.admin.getUserByEmail(ADMIN_EMAIL);
+        const adminUserId = adminUser?.user?.id ?? callerUser.id;
+
+        // Cria o usuário Auth para a barbearia sem precisar de confirmação de email
         const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password,
-            email_confirm: true, // já confirma automaticamente - usuário pode logar na hora
+            email_confirm: true,
         });
 
         if (createError) {
@@ -69,8 +82,7 @@ Deno.serve(async (req) => {
 
         const newUserId = newUser.user?.id;
 
-        // 6. Insere na tabela assinantes com o user_id do ADMIN (dono do painel SaaS)
-        //    e também salva o auth_user_id do novo cliente para referência futura
+        // Insere na tabela assinantes com user_id = admin (edercaput@gmail.com)
         const { error: insertError } = await supabaseAdmin.from("assinantes").insert({
             nome_barbearia: nome_barbearia.trim(),
             dono: dono?.trim() || null,
@@ -78,12 +90,12 @@ Deno.serve(async (req) => {
             telefone: telefone?.trim() || null,
             status: status || "ativo",
             valor_assinatura: parseFloat(valor_assinatura) || 55.00,
-            user_id: callerUser.id,       // admin é o "dono" do registro no painel
-            auth_user_id: newUserId,       // ID do novo usuário criado para o cliente acessar
+            user_id: adminUserId,   // sempre o edercaput@gmail.com
+            auth_user_id: newUserId, // ID da barbearia criada para referência
         });
 
         if (insertError) {
-            // Se falhou ao inserir, tenta remover o Auth user criado (rollback manual)
+            // Rollback: remove o Auth user se o insert falhar
             if (newUserId) {
                 await supabaseAdmin.auth.admin.deleteUser(newUserId);
             }
