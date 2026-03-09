@@ -21,6 +21,7 @@ import {
 import { motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@supabase/supabase-js';
 
 interface Assinante {
     id: string;
@@ -48,6 +49,7 @@ export default function AdminSaaS() {
     const [newPhone, setNewPhone] = useState('');
     const [newStatus, setNewStatus] = useState<'ativo' | 'inativo'>('ativo');
     const [newValor, setNewValor] = useState('55.00');
+    const [newSenha, setNewSenha] = useState('');
 
     const loadAssinantes = async () => {
         setLoading(true);
@@ -69,18 +71,39 @@ export default function AdminSaaS() {
     }, []);
 
     const handleSave = async () => {
-        if (!newBarbearia.trim() || !newEmail.trim() || !newValor) {
-            toast({ title: 'Preencha os campos obrigatórios.', variant: 'destructive' });
+        if (!newBarbearia.trim() || !newEmail.trim() || !newValor || !newSenha.trim()) {
+            toast({ title: 'Preencha os campos obrigatórios (incluindo senha).', variant: 'destructive' });
             return;
         }
 
+        toast({ title: 'Criando conta de autenticação SaaS...' });
+
+        // Primeiro: criar conta de autenticação (Auth) no Supabase de forma segura sem deslogar o admin
+        const tempClient = createClient(
+            import.meta.env.VITE_SUPABASE_URL || '',
+            import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+            { auth: { persistSession: false, autoRefreshToken: false } }
+        );
+
+        const { data: authData, error: authError } = await tempClient.auth.signUp({
+            email: newEmail.trim(),
+            password: newSenha.trim(),
+        });
+
+        if (authError) {
+            toast({ title: 'Erro ao criar conta Auth', description: authError.message, variant: 'destructive' });
+            return;
+        }
+
+        // Segundo: Adicionar registro no assinantes (ainda usando a conta do admin logada para o admin ser dono do registro)
         const payload = {
             nome_barbearia: newBarbearia.trim(),
             dono: newDono.trim(),
             email: newEmail.trim(),
             telefone: newPhone.trim(),
             status: newStatus,
-            valor_assinatura: parseFloat(newValor)
+            valor_assinatura: parseFloat(newValor),
+            user_id: user?.id
         };
 
         const { error } = await supabase.from('assinantes').insert(payload);
@@ -88,12 +111,13 @@ export default function AdminSaaS() {
         if (error) {
             toast({ title: 'Erro ao salvar cliente/assinante.', variant: 'destructive' });
         } else {
-            toast({ title: 'Assinatura criada com sucesso!' });
+            toast({ title: 'Conta e assinatura criadas com sucesso!' });
             setShowModal(false);
             setNewBarbearia('');
             setNewDono('');
             setNewEmail('');
             setNewPhone('');
+            setNewSenha('');
             setNewValor('55.00');
             loadAssinantes();
         }
@@ -271,6 +295,10 @@ export default function AdminSaaS() {
                             <div className="col-span-2">
                                 <label className="text-xs text-muted-foreground block mb-1">Email de Login (*)</label>
                                 <Input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="joao@email.com" className="bg-secondary/50" />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-xs text-muted-foreground block mb-1">Senha Inicial (*)</label>
+                                <Input type="password" value={newSenha} onChange={e => setNewSenha(e.target.value)} placeholder="Senha definida para o cliente logar" className="bg-secondary/50" />
                             </div>
                             <div className="col-span-2">
                                 <label className="text-xs text-muted-foreground block mb-1">Telefone / WhatsApp</label>
