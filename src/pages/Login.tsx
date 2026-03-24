@@ -11,6 +11,7 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [errorDetail, setErrorDetail] = useState('');
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -20,26 +21,34 @@ export default function Login() {
         }
 
         setLoading(true);
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
+        setErrorDetail('');
+
+        console.log('Tentando login:', email.trim(), '| senha len:', password.length);
+        console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
             password,
         });
 
+        console.log('Login resultado:', { data, error });
+
         if (error) {
-            let msg = 'Erro ao fazer login. Verifique suas credenciais.';
-            if (error.message.includes('Email not confirmed')) {
-                msg = 'O e-mail não foi confirmado. Confirme seu e-mail no Supabase.';
-            } else if (error.message.includes('Invalid login credentials')) {
-                msg = 'E-mail ou senha incorretos.';
-            }
-            toast({ title: 'Acesso negado', description: msg, variant: 'destructive' });
+            const detail = `[${error.status}] ${error.message}`;
+            setErrorDetail(detail);
+            toast({
+                title: 'Falha no login',
+                description: detail,
+                variant: 'destructive',
+            });
             setLoading(false);
         }
     };
 
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'NAO DEFINIDO';
+
     return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
-            {/* Background decoration */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full mix-blend-screen" />
                 <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/10 blur-[150px] rounded-full mix-blend-screen" />
@@ -62,29 +71,40 @@ export default function Login() {
                         <p className="text-sm text-muted-foreground">O sistema definitivo para sua barbearia.</p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="space-y-4 relative z-10">
+                    <form onSubmit={handleLogin} className="space-y-4 relative z-10" autoComplete="off">
                         <div className="space-y-1">
                             <label className="text-xs font-medium text-muted-foreground ml-1">E-mail</label>
                             <Input
-                                type="email"
+                                id="login-email-field"
+                                type="text"
+                                inputMode="email"
                                 placeholder="exemplo@email.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="bg-secondary/50 border-border h-12 px-4 focus:ring-primary/50"
+                                autoComplete="off"
                                 required
                             />
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-medium text-muted-foreground ml-1">Senha</label>
                             <Input
+                                id="login-password-field"
                                 type="password"
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="bg-secondary/50 border-border h-12 px-4 focus:ring-primary/50"
+                                autoComplete="new-password"
                                 required
                             />
                         </div>
+
+                        {errorDetail && (
+                            <div className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg p-3 font-mono break-all">
+                                {errorDetail}
+                            </div>
+                        )}
 
                         <Button
                             type="submit"
@@ -99,6 +119,10 @@ export default function Login() {
                             {loading ? 'Autenticando...' : 'Entrar no Sistema'}
                         </Button>
                     </form>
+
+                    <p className="text-center text-xs text-muted-foreground/30 mt-4 font-mono">
+                        {supabaseUrl.substring(8, 40)}
+                    </p>
                 </div>
             </motion.div>
         </div>
