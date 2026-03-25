@@ -74,32 +74,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => renderNavLink(item))}
 
           {/* Separador + Painel Admin */}
-          <div className="pt-3 mt-3 border-t border-sidebar-border">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pb-2 font-semibold">Administração</p>
-            <Link
-              to={adminItem.path}
-              className={`relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 overflow-hidden ${isAdminRoute
-                  ? 'text-primary bg-primary/10 shadow-sm'
-                  : 'text-sidebar-foreground hover:bg-primary/5 hover:text-primary'
-                }`}
-            >
-              {isAdminRoute && (
-                <motion.div
-                  layoutId="active-nav-bg"
-                  className="absolute inset-0 bg-primary/10 backdrop-blur-md rounded-xl z-0"
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                />
-              )}
-              <ShieldAlert className={`w-5 h-5 relative z-10 ${isAdminRoute ? 'text-primary' : 'text-primary/60'}`} />
-              <span className="relative z-10">Painel Admin SaaS</span>
-              {isAdminRoute && (
-                <motion.div
-                  layoutId="active-nav-indicator"
-                  className="absolute right-3 w-1.5 h-1.5 rounded-full bg-primary z-10 shadow-[0_0_8px_rgba(255,255,255,0.7)]"
-                />
-              )}
-            </Link>
-          </div>
+          {user?.email === 'edercaput@gmail.com' && (
+            <div className="pt-3 mt-3 border-t border-sidebar-border">
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pb-2 font-semibold">Administração</p>
+              <Link
+                to={adminItem.path}
+                className={`relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 overflow-hidden ${isAdminRoute
+                    ? 'text-primary bg-primary/10 shadow-sm'
+                    : 'text-sidebar-foreground hover:bg-primary/5 hover:text-primary'
+                  }`}
+              >
+                {isAdminRoute && (
+                  <motion.div
+                    layoutId="active-nav-bg"
+                    className="absolute inset-0 bg-primary/10 backdrop-blur-md rounded-xl z-0"
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  />
+                )}
+                <ShieldAlert className={`w-5 h-5 relative z-10 ${isAdminRoute ? 'text-primary' : 'text-primary/60'}`} />
+                <span className="relative z-10">Painel Admin SaaS</span>
+                {isAdminRoute && (
+                  <motion.div
+                    layoutId="active-nav-indicator"
+                    className="absolute right-3 w-1.5 h-1.5 rounded-full bg-primary z-10 shadow-[0_0_8px_rgba(255,255,255,0.7)]"
+                  />
+                )}
+              </Link>
+            </div>
+          )}
         </nav>
 
         <div className="p-4 border-t border-sidebar-border bg-sidebar/50 backdrop-blur-md space-y-2">
@@ -161,18 +163,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 })}
 
                 {/* Admin no mobile */}
-                <div className="pt-2 mt-2 border-t border-border">
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pb-2 font-semibold">Administração</p>
-                  <Link
-                    to={adminItem.path}
-                    onClick={() => setMobileOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isAdminRoute ? 'bg-primary/10 text-primary' : 'text-primary/70 hover:bg-primary/5 hover:text-primary'
-                      }`}
-                  >
-                    <ShieldAlert className="w-5 h-5" />
-                    {adminItem.label} SaaS
-                  </Link>
-                </div>
+                {user?.email === 'edercaput@gmail.com' && (
+                  <div className="pt-2 mt-2 border-t border-border">
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pb-2 font-semibold">Administração</p>
+                    <Link
+                      to={adminItem.path}
+                      onClick={() => setMobileOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isAdminRoute ? 'bg-primary/10 text-primary' : 'text-primary/70 hover:bg-primary/5 hover:text-primary'
+                        }`}
+                    >
+                      <ShieldAlert className="w-5 h-5" />
+                      {adminItem.label} SaaS
+                    </Link>
+                  </div>
+                )}
 
                 <div className="pt-2 mt-2 border-t border-border">
                   <button
@@ -203,7 +207,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Mobile Bottom Nav — apenas os itens principais */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sidebar/90 backdrop-blur-xl border-t border-sidebar-border flex justify-around py-3 px-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
-          {[...navItems, adminItem].map((item) => {
+          {[...navItems, ...(user?.email === 'edercaput@gmail.com' ? [adminItem] : [])].map((item) => {
             const active = location.pathname === item.path;
             return (
               <Link
