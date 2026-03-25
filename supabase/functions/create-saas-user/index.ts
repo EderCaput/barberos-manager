@@ -8,7 +8,7 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ADMIN_EMAIL = "edercaput@gmail.com";
+const ADMIN_EMAILS = ["edercaput@gmail.com", "atratusbpo@gmail.com"];
 
 Deno.serve(async (req) => {
     if (req.method === "OPTIONS") {
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
         }
 
         // Garante que apenas o admin pode chamar esta função
-        if (callerUser.email !== ADMIN_EMAIL) {
+        if (!ADMIN_EMAILS.includes(callerUser.email?.trim().toLowerCase() || '')) {
             return new Response(JSON.stringify({ error: "Apenas o administrador pode criar contas SaaS." }), {
                 status: 403,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
         }
 
         // Busca o user_id do admin para gravar em assinantes
-        const { data: adminUser } = await supabaseAdmin.auth.admin.getUserByEmail(ADMIN_EMAIL);
+        const { data: adminUser } = await supabaseAdmin.auth.admin.getUserByEmail(callerUser.email!);
         const adminUserId = adminUser?.user?.id ?? callerUser.id;
 
         // Cria o usuário Auth para a barbearia sem precisar de confirmação de email

@@ -19,12 +19,13 @@ import Login from "./pages/Login";
 
 const queryClient = new QueryClient();
 
-// Email do único administrador autorizado a acessar o sistema
-const ADMIN_EMAIL = "edercaput@gmail.com";
+// E-mails autorizados a acessar o sistema como Administradores
+const ADMIN_EMAILS = ["edercaput@gmail.com", "atratusbpo@gmail.com"];
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
-  if (user?.email?.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+  const isAdmin = ADMIN_EMAILS.includes(user?.email?.trim().toLowerCase() || '');
+  if (!isAdmin) {
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;

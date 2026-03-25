@@ -20,6 +20,7 @@ const navItems = [
 
 // Item especial de admin — aparece separado no menu
 const adminItem = { path: '/admin', label: 'Painel Admin', icon: ShieldAlert };
+const ADMIN_EMAILS = ["edercaput@gmail.com", "atratusbpo@gmail.com"];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -27,7 +28,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuth();
 
   const isAdminRoute = location.pathname === adminItem.path;
-  const isAdmin = user?.email?.trim().toLowerCase() === 'edercaput@gmail.com';
+  const isAdmin = ADMIN_EMAILS.includes(user?.email?.trim().toLowerCase() || '');
 
   const renderNavLink = (item: typeof navItems[0], onClick?: () => void) => {
     const active = location.pathname === item.path;
