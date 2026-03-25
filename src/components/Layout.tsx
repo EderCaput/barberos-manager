@@ -27,6 +27,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuth();
 
   const isAdminRoute = location.pathname === adminItem.path;
+  const isAdmin = user?.email?.trim().toLowerCase() === 'edercaput@gmail.com';
 
   const renderNavLink = (item: typeof navItems[0], onClick?: () => void) => {
     const active = location.pathname === item.path;
@@ -74,7 +75,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {navItems.map((item) => renderNavLink(item))}
 
           {/* Separador + Painel Admin */}
-          {user?.email?.toLowerCase() === 'edercaput@gmail.com' && (
+          {isAdmin && (
             <div className="pt-3 mt-3 border-t border-sidebar-border">
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pb-2 font-semibold">Administração</p>
               <Link
@@ -163,7 +164,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 })}
 
                 {/* Admin no mobile */}
-                {user?.email?.toLowerCase() === 'edercaput@gmail.com' && (
+                {isAdmin && (
                   <div className="pt-2 mt-2 border-t border-border">
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pb-2 font-semibold">Administração</p>
                     <Link
@@ -207,7 +208,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Mobile Bottom Nav — apenas os itens principais */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sidebar/90 backdrop-blur-xl border-t border-sidebar-border flex justify-around py-3 px-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
-          {[...navItems, ...(user?.email?.toLowerCase() === 'edercaput@gmail.com' ? [adminItem] : [])].map((item) => {
+          {[...navItems, ...(isAdmin ? [adminItem] : [])].map((item) => {
             const active = location.pathname === item.path;
             return (
               <Link
