@@ -24,7 +24,7 @@ const ADMIN_EMAIL = "edercaput@gmail.com";
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
-  if (user?.email !== ADMIN_EMAIL) {
+  if (user?.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;
