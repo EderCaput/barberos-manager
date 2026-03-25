@@ -1,3 +1,5 @@
+// @ts-nocheck
+// Ignora os alertas do VS Code, pois este arquivo roda no ambiente Deno (Supabase Edge) e não no Node.js
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
